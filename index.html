@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1829">
+<meta name="description" content="Monitor de Polvo del Sahara para Aruba. Alertas 1-2 días antes basadas en modelos CAMS/Copernicus.">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Polvo del Sahara · Aruba</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Karla:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --sand-pale:#F9EDD2;--sand:#E8C97A;--sand-mid:#C49A3C;--ochre:#B87333;
+  --dusk-top:#0D1829;--dusk-mid:#1A2744;--dusk-card:rgba(26,39,68,0.78);
+  --dusk-border:rgba(232,201,122,0.14);--white:#FFFFFF;--muted:rgba(255,255,255,0.45);
+  --green:#27AE60;--yellow:#F4C430;--orange:#D4631A;--red:#C0392B;
+  --level-color:var(--green);
+}
+html{scroll-behavior:smooth}
+body{min-height:100vh;background:var(--dusk-top);color:var(--white);font-family:'Karla',sans-serif;overflow-x:hidden}
+
+/* SKY */
+.sky{position:fixed;inset:0;z-index:0;background:radial-gradient(ellipse at 50% 0%,#2A3F6A 0%,#0D1829 60%);overflow:hidden}
+.dust-layer{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 110%,var(--ochre) 0%,transparent 65%);opacity:0.18;animation:dustBreath 8s ease-in-out infinite;transition:opacity 2s ease}
+.dust-layer-2{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 120%,#E8C97A 0%,transparent 50%);opacity:0.1;animation:dustBreath 12s ease-in-out infinite reverse}
+@keyframes dustBreath{0%,100%{transform:scaleY(1) translateY(0)}50%{transform:scaleY(1.15) translateY(-20px)}}
+.particles{position:absolute;inset:0;pointer-events:none}
+.particle{position:absolute;border-radius:50%;background:var(--sand);opacity:0;animation:float linear infinite}
+@keyframes float{0%{transform:translateY(100vh) translateX(0) scale(0);opacity:0}10%{opacity:0.4}90%{opacity:0.15}100%{transform:translateY(-10vh) translateX(var(--drift)) scale(1.5);opacity:0}}
+.stars{position:absolute;inset:0}
+.star{position:absolute;background:white;border-radius:50%;animation:twinkle ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.8}50%{opacity:.2}}
+.grain{position:fixed;inset:-50%;width:200%;height:200%;z-index:1;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:256px;pointer-events:none;animation:grainShift .5s steps(1) infinite}
+@keyframes grainShift{0%{transform:translate(0,0)}25%{transform:translate(-5%,-3%)}50%{transform:translate(3%,5%)}75%{transform:translate(-3%,4%)}}
+
+/* LAYOUT */
+.page{position:relative;z-index:2;max-width:900px;margin:0 auto;padding:0 20px 60px}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:24px 0 0;flex-wrap:wrap;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--ochre),var(--sand));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px rgba(184,115,51,.4);flex-shrink:0}
+.brand-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;letter-spacing:-.3px}
+.brand-sub{font-size:11px;color:var(--muted);margin-top:3px;font-weight:500;letter-spacing:.5px}
+.header-right{display:flex;align-items:center;gap:8px}
+.cams-pill{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.06);border:1px solid var(--dusk-border);border-radius:30px;padding:6px 14px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.5px}
+.dot-live{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:livePulse 2s ease-in-out infinite}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
+.btn-install{display:none;border:1px solid var(--dusk-border);background:rgba(255,255,255,.06);color:var(--white);font-family:'Karla',sans-serif;font-size:12px;font-weight:600;padding:6px 14px;border-radius:30px;cursor:pointer;transition:.2s}
+.btn-install:hover{background:rgba(255,255,255,.14)}
+.btn-install.visible{display:flex;align-items:center;gap:5px}
+
+/* HERO */
+.hero{text-align:center;padding:44px 0 32px}
+.hero-date{font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.hero-level-emoji{font-size:68px;line-height:1;margin-bottom:14px;display:block;filter:drop-shadow(0 0 24px rgba(255,200,100,.4));animation:heroFloat 4s ease-in-out infinite}
+@keyframes heroFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.hero-level-name{font-family:'Playfair Display',serif;font-size:clamp(40px,8vw,70px);font-weight:900;line-height:1;color:var(--level-color);text-shadow:0 0 40px currentColor;transition:color 1s,text-shadow 1s;margin-bottom:10px}
+.hero-dust-val{font-size:15px;color:var(--muted)}
+.hero-dust-val strong{color:var(--white);font-weight:700;font-size:19px}
+
+/* GAUGE */
+.gauge-section{margin-bottom:36px}
+.gauge-track{width:100%;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;margin:10px 0 6px;position:relative}
+.gauge-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,#27AE60 0%,#F4C430 33%,#D4631A 66%,#C0392B 100%);transition:width 1.2s cubic-bezier(.34,1.56,.64,1);position:relative}
+.gauge-fill::after{content:'';position:absolute;right:-1px;top:50%;transform:translateY(-50%);width:14px;height:14px;border-radius:50%;background:white;box-shadow:0 0 10px rgba(255,255,255,.6)}
+.gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.5px}
+
+/* METRICS */
+.metrics-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px}
+.metric-card{background:var(--dusk-card);border:1px solid var(--dusk-border);border-radius:18px;padding:18px 14px;text-align:center;backdrop-filter:blur(12px);transition:.2s}
+.metric-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.metric-val{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;line-height:1;color:var(--sand)}
+.metric-unit{font-size:11px;color:var(--muted);margin-top:1px}
+.metric-name{font-size:10px;color:var(--muted);margin-top:6px;font-weight:600;text-transform:uppercase;letter-spacing:.8px}
+
+/* ALERT BANNER */
+.alert-banner{border-radius:16px;padding:18px 20px;margin-bottom:28px;display:none;gap:14px;align-items:flex-start;backdrop-filter:blur(12px);border:1px solid transparent;animation:bannerIn .5s ease forwards}
+.alert-banner.show{display:flex}
+@keyframes bannerIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.alert-banner.moderate-alert{background:rgba(244,196,48,.12);border-color:rgba(244,196,48,.35)}
+.alert-banner.high-alert{background:rgba(212,99,26,.15);border-color:rgba(212,99,26,.4)}
+.alert-banner.very-high-alert{background:rgba(192,57,43,.18);border-color:rgba(192,57,43,.5)}
+.alert-icon{font-size:26px;flex-shrink:0;margin-top:2px}
+.alert-body{flex:1}
+.alert-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:5px}
+.alert-desc{font-size:12px;line-height:1.6;color:rgba(255,255,255,.75)}
+.alert-chips{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.alert-chip{background:rgba(255,255,255,.1);border-radius:20px;padding:3px 12px;font-size:11px;font-weight:700}
+
+/* FORECAST */
+.section-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.section-title{font-family:'Playfair Display',serif;font-size:21px;font-weight:700}
+.section-sub{font-size:11px;color:var(--muted);font-weight:500}
+.forecast-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:36px}
+.day-card{background:var(--dusk-card);border:1px solid var(--dusk-border);border-radius:18px;padding:14px 10px;text-align:center;backdrop-filter:blur(12px);transition:.25s;cursor:default;position:relative;overflow:hidden}
+.day-card::before{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 18px 18px;background:var(--lc,transparent)}
+.day-card:hover{transform:translateY(-3px)}
+.day-card.today-card{border-color:rgba(232,201,122,.4);box-shadow:0 0 24px rgba(232,201,122,.15)}
+.day-card.alert-card{border-color:rgba(212,99,26,.5);animation:alertGlow 3s ease-in-out infinite}
+.day-card.danger-card{border-color:rgba(192,57,43,.6);animation:dangerGlow 2.5s ease-in-out infinite}
+@keyframes alertGlow{0%,100%{box-shadow:0 0 14px rgba(212,99,26,.2)}50%{box-shadow:0 0 26px rgba(212,99,26,.5)}}
+@keyframes dangerGlow{0%,100%{box-shadow:0 0 18px rgba(192,57,43,.3)}50%{box-shadow:0 0 34px rgba(192,57,43,.6)}}
+.day-name{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.day-emoji{font-size:26px;margin-bottom:7px;display:block}
+.day-val{font-family:'Playfair Display',serif;font-size:19px;font-weight:700;line-height:1}
+.day-unit{font-size:9px;color:var(--muted);margin-top:2px}
+.day-badge{display:inline-block;margin-top:7px;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.today-pill{position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--sand-mid);color:var(--dusk-top);font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:0 0 7px 7px}
+
+/* NOTIF CARD */
+.notif-card{background:var(--dusk-card);border:1px solid var(--dusk-border);border-radius:20px;padding:22px 24px;backdrop-filter:blur(12px);margin-bottom:28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.notif-icon{font-size:34px;flex-shrink:0}
+.notif-text{flex:1;min-width:200px}
+.notif-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:4px}
+.notif-desc{font-size:12px;color:var(--muted);line-height:1.6}
+
+/* BUTTONS */
+.btn{border:none;border-radius:12px;padding:11px 20px;font-family:'Karla',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.2s;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,var(--ochre),var(--sand-mid));color:var(--dusk-top);box-shadow:0 4px 16px rgba(184,115,51,.35)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(184,115,51,.5)}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{background:rgba(255,255,255,.07);color:var(--white);border:1px solid var(--dusk-border)}
+.btn-ghost:hover{background:rgba(255,255,255,.13)}
+.actions-row{display:flex;gap:10px;margin-bottom:32px;flex-wrap:wrap}
+
+/* TIPS */
+.tips-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:32px}
+.tip-card{background:var(--dusk-card);border:1px solid var(--dusk-border);border-radius:16px;padding:16px;backdrop-filter:blur(12px);display:flex;gap:12px;align-items:flex-start}
+.tip-icon{font-size:22px;flex-shrink:0}
+.tip-title{font-size:13px;font-weight:700;margin-bottom:4px}
+.tip-desc{font-size:11px;color:var(--muted);line-height:1.55}
+
+/* FOOTER */
+.footer{text-align:center;font-size:11px;color:var(--muted);line-height:1.9;padding-top:20px;border-top:1px solid var(--dusk-border)}
+.footer a{color:var(--sand);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+
+/* LOADING */
+#loading-state{text-align:center;padding:80px 20px}
+.loading-icon{font-size:54px;animation:spin 2s linear infinite;display:block;margin-bottom:18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-family:'Playfair Display',serif;font-size:21px;margin-bottom:8px}
+.loading-sub{font-size:13px;color:var(--muted)}
+
+/* FADE */
+.fade-up{opacity:0;transform:translateY(18px);animation:fadeUp .6s ease forwards}
+@keyframes fadeUp{to{opacity:1;transform:none}}
+.d1{animation-delay:.05s}.d2{animation-delay:.15s}.d3{animation-delay:.25s}.d4{animation-delay:.35s}.d5{animation-delay:.45s}
+
+/* SW STATUS */
+.sw-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(39,174,96,.15);border:1px solid rgba(39,174,96,.3);border-radius:20px;padding:4px 12px;font-size:10px;font-weight:600;color:#27AE60;margin-top:8px}
+
+@media(max-width:640px){
+  .forecast-grid{grid-template-columns:repeat(3,1fr)}
+  .tips-grid{grid-template-columns:1fr}
+  .notif-card{flex-direction:column;text-align:center}
+  .actions-row{justify-content:center}
+}
+@media(max-width:400px){
+  .forecast-grid{grid-template-columns:repeat(2,1fr)}
+  .metrics-row{gap:8px}
+}
+</style>
+</head>
+<body>
+
+<div class="sky">
+  <div class="dust-layer" id="dustLayer"></div>
+  <div class="dust-layer-2"></div>
+  <div class="stars" id="stars"></div>
+  <div class="particles" id="particles"></div>
+</div>
+<div class="grain"></div>
+
+<div class="page">
+
+  <header class="header">
+    <div class="brand">
+      <div class="brand-icon">🌫️</div>
+      <div>
+        <div class="brand-name">Polvo del Sahara</div>
+        <div class="brand-sub">MONITOR · ARUBA</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-install" id="btn-install">📲 Instalar App</button>
+      <div class="cams-pill"><span class="dot-live"></span>CAMS · ECMWF</div>
+    </div>
+  </header>
+
+  <div id="loading-state">
+    <span class="loading-icon">🛰️</span>
+    <div class="loading-text">Consultando satélites…</div>
+    <div class="loading-sub">Copernicus Atmosphere Monitoring Service</div>
+  </div>
+
+  <div id="main-content" style="display:none">
+
+    <section class="hero fade-up d1">
+      <div class="hero-date" id="hero-date">–</div>
+      <span class="hero-level-emoji" id="hero-emoji">–</span>
+      <div class="hero-level-name" id="hero-level-name">–</div>
+      <div class="hero-dust-val">Concentración de polvo: <strong id="hero-dust">–</strong> μg/m³</div>
+    </section>
+
+    <div class="gauge-section fade-up d1">
+      <div class="gauge-track">
+        <div class="gauge-fill" id="gauge-fill" style="width:0%"></div>
+      </div>
+      <div class="gauge-labels">
+        <span>✅ Normal &lt;50</span>
+        <span>🟡 Moderado</span>
+        <span>🟠 Alto</span>
+        <span>🔴 Muy Alto &gt;800</span>
+      </div>
+    </div>
+
+    <div class="metrics-row fade-up d2">
+      <div class="metric-card">
+        <div class="metric-val" id="m-dust">–</div>
+        <div class="metric-unit">μg/m³</div>
+        <div class="metric-name">Polvo Máx.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="m-pm10">–</div>
+        <div class="metric-unit">μg/m³</div>
+        <div class="metric-name">PM10 Máx.</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="m-pm25">–</div>
+        <div class="metric-unit">μg/m³</div>
+        <div class="metric-name">PM2.5 Máx.</div>
+      </div>
+    </div>
+
+    <div class="alert-banner" id="alert-banner">
+      <span class="alert-icon" id="alert-icon">⚠️</span>
+      <div class="alert-body">
+        <div class="alert-title" id="alert-title">–</div>
+        <div class="alert-desc" id="alert-desc">–</div>
+        <div class="alert-chips" id="alert-chips"></div>
+      </div>
+    </div>
+
+    <section class="fade-up d3">
+      <div class="section-header">
+        <div class="section-title">Pronóstico 5 días</div>
+        <div class="section-sub">Modelo CAMS · Open-Meteo</div>
+      </div>
+      <div class="forecast-grid" id="forecast-grid"></div>
+    </section>
+
+    <div class="notif-card fade-up d3" id="notif-card">
+      <div class="notif-icon">🔔</div>
+      <div class="notif-text">
+        <div class="notif-title" id="notif-title">Activar notificaciones</div>
+        <div class="notif-desc" id="notif-desc">Recibe alertas automáticas 1–2 días antes de que llegue el polvo, incluso con el browser cerrado.</div>
+        <div id="sw-status"></div>
+      </div>
+      <button class="btn btn-primary" id="btn-notif">Activar</button>
+    </div>
+
+    <div class="actions-row fade-up d4">
+      <button class="btn btn-primary" id="btn-refresh">🔄 Actualizar</button>
+      <button class="btn btn-ghost" id="btn-test">🔔 Probar alerta</button>
+    </div>
+
+    <section class="fade-up d4">
+      <div class="section-header">
+        <div class="section-title">Recomendaciones</div>
+      </div>
+      <div class="tips-grid">
+        <div class="tip-card">
+          <span class="tip-icon">💊</span>
+          <div>
+            <div class="tip-title">Medicación preventiva</div>
+            <div class="tip-desc">Toma antihistamínicos la noche anterior cuando se pronostique polvo moderado o alto. Coordina con tu médico un plan de acción ante episodios SAL.</div>
+          </div>
+        </div>
+        <div class="tip-card">
+          <span class="tip-icon">😷</span>
+          <div>
+            <div class="tip-title">Mascarilla FFP2/N95</div>
+            <div class="tip-desc">Con niveles altos o muy altos, una mascarilla FFP2 o N95 filtra partículas PM10 y PM2.5 que irritan bronquios y mucosas.</div>
+          </div>
+        </div>
+        <div class="tip-card">
+          <span class="tip-icon">🏠</span>
+          <div>
+            <div class="tip-title">Cerrar ventanas</div>
+            <div class="tip-desc">Mantén ventanas y puertas cerradas durante episodios intensos. Un purificador HEPA interior reduce significativamente la exposición.</div>
+          </div>
+        </div>
+        <div class="tip-card">
+          <span class="tip-icon">💧</span>
+          <div>
+            <div class="tip-title">Hidratación y lavado nasal</div>
+            <div class="tip-desc">Aumenta tu consumo de agua e hidrata la mucosa nasal con suero fisiológico para reducir la irritación por partículas de polvo.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer fade-up d5">
+      <div>Fuente: <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> · <strong>CAMS (Copernicus Atmosphere Monitoring Service)</strong> · ECMWF/ESA</div>
+      <div>📍 Aruba · 12.5211°N, 69.9683°O · Pronóstico actualizado cada 6 horas</div>
+      <div id="last-update" style="margin-top:4px;font-size:10px">–</div>
+    </footer>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  POLVO DEL SAHARA · ARUBA — v2.0 (GitHub Pages + SW)
+//  API: Copernicus CAMS via Open-Meteo Air Quality
+// ══════════════════════════════════════════════════════════
+
+const LAT = 12.5211, LON = -69.9683;
+
+const LV = {
+  low:      {label:"Normal",   emoji:"✅",color:"#27AE60",badgeBg:"rgba(39,174,96,.2)",   cc:""},
+  moderate: {label:"Moderado", emoji:"🟡",color:"#F4C430",badgeBg:"rgba(244,196,48,.2)",  cc:""},
+  high:     {label:"Alto",     emoji:"🟠",color:"#D4631A",badgeBg:"rgba(212,99,26,.25)",  cc:"alert-card"},
+  veryHigh: {label:"Muy Alto", emoji:"🔴",color:"#C0392B",badgeBg:"rgba(192,57,43,.25)",  cc:"danger-card"}
+};
+const DAYS  = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+const MONTHS= ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+// ─── Utilities ───────────────────────────────────────────
+const classify = v => v<50?"low":v<200?"moderate":v<800?"high":"veryHigh";
+const todayISO  = ()=>new Date().toISOString().split("T")[0];
+const gaugeP    = v=>v<=0?0:Math.min(100,Math.round(Math.log(v+1)/Math.log(2001)*100));
+
+function dayLabel(ds){
+  const d=new Date(ds+"T12:00:00"), now=new Date(); now.setHours(12,0,0,0);
+  const diff=Math.round((d-now)/864e5);
+  return diff===0?"HOY":diff===1?"MÑN":`${DAYS[d.getDay()]} ${d.getDate()}`;
+}
+function fullDate(ds){
+  const d=new Date(ds+"T12:00:00");
+  return `${DAYS[d.getDay()]}, ${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+}
+function fmtTime(iso){
+  return new Date(iso).toLocaleTimeString("es-419",{hour:"2-digit",minute:"2-digit"});
+}
+
+// ─── API ─────────────────────────────────────────────────
+async function fetchForecast(){
+  const u=new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
+  u.searchParams.set("latitude",LAT); u.searchParams.set("longitude",LON);
+  u.searchParams.set("hourly","dust,pm10,pm2_5,european_aqi");
+  u.searchParams.set("forecast_days","5");
+  u.searchParams.set("timezone","America/Aruba");
+  const r=await fetch(u); if(!r.ok) throw new Error("API "+r.status);
+  return r.json();
+}
+
+function process(data){
+  const {time,dust,pm10,pm2_5:pm25,european_aqi:aqi}=data.hourly;
+  const m={};
+  time.forEach((t,i)=>{
+    const d=t.split("T")[0];
+    if(!m[d]) m[d]={dust:[],pm10:[],pm25:[],aqi:[]};
+    if(dust[i]!==null) m[d].dust.push(dust[i]);
+    if(pm10[i]!==null) m[d].pm10.push(pm10[i]);
+    if(pm25[i]!==null) m[d].pm25.push(pm25[i]);
+    if(aqi[i]!==null)  m[d].aqi.push(aqi[i]);
+  });
+  const mx=a=>a.length?Math.max(...a):0;
+  const av=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
+  return Object.entries(m).map(([date,v])=>({
+    date, dustMax:mx(v.dust), dustAvg:av(v.dust),
+    pm10Max:mx(v.pm10), pm25Max:mx(v.pm25), aqiMax:mx(v.aqi),
+    level:classify(mx(v.dust))
+  }));
+}
+
+// ─── Render ───────────────────────────────────────────────
+function render(fc){
+  const today=todayISO();
+  const td=fc.find(d=>d.date===today)||fc[0];
+  const lv=LV[td.level];
+
+  document.documentElement.style.setProperty("--level-color",lv.color);
+  document.getElementById("dustLayer").style.opacity=
+    {low:.07,moderate:.2,high:.38,veryHigh:.55}[td.level];
+
+  // Hero
+  document.getElementById("hero-date").textContent=(td.date===today?"Hoy · ":"")+fullDate(td.date)+" · Aruba";
+  document.getElementById("hero-emoji").textContent=lv.emoji;
+  const ln=document.getElementById("hero-level-name");
+  ln.textContent=lv.label; ln.style.color=lv.color;
+  document.getElementById("hero-dust").textContent=Math.round(td.dustMax);
+
+  // Gauge
+  document.getElementById("gauge-fill").style.width=gaugeP(td.dustMax)+"%";
+
+  // Metrics
+  document.getElementById("m-dust").textContent=Math.round(td.dustMax);
+  document.getElementById("m-pm10").textContent=Math.round(td.pm10Max);
+  document.getElementById("m-pm25").textContent=Math.round(td.pm25Max);
+
+  // Alert banner
+  const inc=fc.filter(d=>{
+    const diff=Math.round((new Date(d.date+"T12:00:00")-new Date().setHours(12,0,0,0))/864e5);
+    return (diff===1||diff===2)&&d.level!=="low";
+  });
+  if(inc.length){
+    const worst=inc.reduce((a,b)=>["low","moderate","high","veryHigh"].indexOf(b.level)>["low","moderate","high","veryHigh"].indexOf(a.level)?b:a);
+    const wl=LV[worst.level];
+    const banner=document.getElementById("alert-banner");
+    banner.className="alert-banner show "+(worst.level==="veryHigh"?"very-high-alert":worst.level==="high"?"high-alert":"moderate-alert");
+    document.getElementById("alert-icon").textContent=wl.emoji;
+    document.getElementById("alert-title").textContent=`Alerta: Polvo ${wl.label} en camino`;
+    document.getElementById("alert-desc").textContent=
+      worst.level==="veryHigh"?"Concentraciones muy altas pronosticadas. Prepara medicación, ten mascarilla FFP2 lista y minimiza tiempo exterior.":
+      worst.level==="high"?"Concentraciones altas pronosticadas. Toma antihistamínicos con anticipación y evita exposición prolongada al aire libre.":
+      "Concentraciones moderadas pronosticadas. Considera tomar antihistamínicos preventivamente.";
+    const chips=document.getElementById("alert-chips"); chips.innerHTML="";
+    inc.forEach(d=>{
+      const diff=Math.round((new Date(d.date+"T12:00:00")-new Date().setHours(12,0,0,0))/864e5);
+      const c=document.createElement("span"); c.className="alert-chip";
+      c.textContent=`${diff===1?"Mañana":"Pasado mañana"}: ${Math.round(d.dustMax)} μg/m³ (${LV[d.level].label})`;
+      chips.appendChild(c);
+    });
+  }
+
+  // Forecast
+  const grid=document.getElementById("forecast-grid"); grid.innerHTML="";
+  fc.slice(0,5).forEach(day=>{
+    const l=LV[day.level];
+    const isToday=day.date===today;
+    const card=document.createElement("div");
+    card.className=`day-card ${l.cc}${isToday?" today-card":""}`;
+    card.style.setProperty("--lc",l.color);
+    card.innerHTML=`
+      ${isToday?'<div class="today-pill">HOY</div>':""}
+      <div class="day-name">${dayLabel(day.date)}</div>
+      <span class="day-emoji">${l.emoji}</span>
+      <div class="day-val" style="color:${l.color}">${Math.round(day.dustMax)}</div>
+      <div class="day-unit">μg/m³</div>
+      <div class="day-badge" style="background:${l.badgeBg};color:${l.color}">${l.label}</div>`;
+    grid.appendChild(card);
+  });
+
+  // Last update
+  const now=new Date();
+  document.getElementById("last-update").textContent=
+    `Última actualización: ${now.toLocaleDateString("es-419",{day:"numeric",month:"long"})} · ${fmtTime(now.toISOString())}`;
+
+  // Pass forecast to SW for background checks
+  if(navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({type:"FORECAST",forecast:fc});
+  }
+}
+
+// ─── Service Worker ───────────────────────────────────────
+let swReady=false;
+
+async function registerSW(){
+  if(!("serviceWorker" in navigator)) return;
+  try{
+    const reg=await navigator.serviceWorker.register("sw.js");
+    console.log("[SW] Registered:",reg.scope);
+    swReady=true;
+    const badge=document.getElementById("sw-status");
+    badge.innerHTML='<div class="sw-badge">⚙️ Service Worker activo — notificaciones en segundo plano</div>';
+  }catch(e){
+    console.warn("[SW] Registration failed:",e);
+  }
+}
+
+// ─── Notifications ────────────────────────────────────────
+let notifPerm=Notification.permission;
+
+function updateNotifUI(){
+  const btn=document.getElementById("btn-notif");
+  const desc=document.getElementById("notif-desc");
+  const title=document.getElementById("notif-title");
+  if(notifPerm==="granted"){
+    btn.textContent="✅ Activas"; btn.disabled=true; btn.style.opacity=".7";
+    title.textContent="Notificaciones activas";
+    desc.textContent="Recibirás alertas automáticas 1–2 días antes del polvo, incluso con el browser minimizado.";
+  } else if(notifPerm==="denied"){
+    btn.textContent="🚫 Bloqueadas"; btn.disabled=true; btn.style.opacity=".5";
+    desc.textContent="Bloqueadas en el navegador. Ve a Configuración → Privacidad → Notificaciones del sitio para habilitarlas.";
+  }
+}
+
+document.getElementById("btn-notif").addEventListener("click",async()=>{
+  notifPerm=await Notification.requestPermission();
+  updateNotifUI();
+  if(notifPerm==="granted"&&navigator.serviceWorker.controller){
+    navigator.serviceWorker.controller.postMessage({type:"CHECK_NOW"});
+  }
+});
+
+document.getElementById("btn-test").addEventListener("click",async()=>{
+  if(notifPerm!=="granted"){
+    notifPerm=await Notification.requestPermission();
+    updateNotifUI();
+    if(notifPerm!=="granted") return;
+  }
+  const reg=await navigator.serviceWorker.getRegistration();
+  if(reg){
+    reg.showNotification("🟠 Prueba — Polvo Alto en camino",{
+      body:"Polvo alto pronosticado para mañana en Aruba.\nConcentración esperada: ~450 μg/m³ · ¡Prepara tu medicación!",
+      icon:"icons/icon-192.png", badge:"icons/icon-96.png",
+      requireInteraction:false
+    });
+  } else {
+    new Notification("🟠 Prueba — Polvo Alto en camino",{
+      body:"Polvo alto pronosticado para mañana en Aruba.\nConcentración esperada: ~450 μg/m³ · ¡Prepara tu medicación!"
+    });
+  }
+});
+
+// ─── PWA Install prompt ───────────────────────────────────
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{
+  e.preventDefault(); deferredPrompt=e;
+  document.getElementById("btn-install").classList.add("visible");
+});
+document.getElementById("btn-install").addEventListener("click",async()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const{outcome}=await deferredPrompt.userChoice;
+  if(outcome==="accepted") document.getElementById("btn-install").classList.remove("visible");
+  deferredPrompt=null;
+});
+
+// ─── Background: stars & particles ───────────────────────
+function buildStars(){
+  const c=document.getElementById("stars");
+  for(let i=0;i<80;i++){
+    const s=document.createElement("div"); s.className="star";
+    const sz=Math.random()*2+.5;
+    s.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*60}%;animation-duration:${2+Math.random()*4}s;animation-delay:${Math.random()*4}s`;
+    c.appendChild(s);
+  }
+}
+function buildParticles(level){
+  const c=document.getElementById("particles"); c.innerHTML="";
+  const n={low:5,moderate:16,high:34,veryHigh:58}[level];
+  for(let i=0;i<n;i++){
+    const p=document.createElement("div"); p.className="particle";
+    const sz=Math.random()*4+1, drift=(Math.random()-.5)*200;
+    p.style.cssText=`width:${sz}px;height:${sz}px;left:${Math.random()*100}%;bottom:-10px;animation-duration:${8+Math.random()*16}s;animation-delay:${Math.random()*12}s;--drift:${drift}px`;
+    c.appendChild(p);
+  }
+}
+
+// ─── Refresh button ───────────────────────────────────────
+document.getElementById("btn-refresh").addEventListener("click",()=>{
+  document.getElementById("main-content").style.display="none";
+  document.getElementById("loading-state").style.display="block";
+  init();
+});
+
+// ─── Auto-refresh every 6 hours ──────────────────────────
+setInterval(()=>init(),6*60*60*1000);
+
+// ─── Init ─────────────────────────────────────────────────
+async function init(){
+  try{
+    const data=await fetchForecast();
+    const fc=process(data);
+    const td=fc.find(d=>d.date===todayISO())||fc[0];
+    buildParticles(td.level);
+    render(fc);
+    document.getElementById("loading-state").style.display="none";
+    document.getElementById("main-content").style.display="block";
+    updateNotifUI();
+  }catch(err){
+    document.getElementById("loading-state").innerHTML=`
+      <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:8px">Error al cargar datos</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.5);margin-bottom:20px">${err.message}</div>
+      <button class="btn btn-primary" onclick="location.reload()">Reintentar</button>`;
+  }
+}
+
+buildStars();
+registerSW();
+init();
+</script>
+</body>
+</html>
